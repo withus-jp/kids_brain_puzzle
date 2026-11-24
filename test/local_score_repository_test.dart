@@ -10,14 +10,13 @@ GameRecord _record({
   required int moves,
   required int seconds,
   int day = 1,
-}) =>
-    GameRecord(
-      gameId: gameId,
-      difficulty: difficulty,
-      moves: moves,
-      elapsedSeconds: seconds,
-      playedAt: DateTime(2026, 11, day),
-    );
+}) => GameRecord(
+  gameId: gameId,
+  difficulty: difficulty,
+  moves: moves,
+  elapsedSeconds: seconds,
+  playedAt: DateTime(2026, 11, day),
+);
 
 void main() {
   late LocalScoreRepository repository;

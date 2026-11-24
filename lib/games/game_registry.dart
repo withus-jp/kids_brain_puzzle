@@ -9,13 +9,9 @@ final List<GameInfo> gameRegistry = [
   GameInfo(
     id: MemoryMatchScreen.gameId,
     title: '기억력 짝 맞추기',
-    description: '같은 그림 카드를 찾아요!',
+    description: '같은 그림을 찾아 스테이지를 깨요!',
     emoji: '🃏',
     color: AppColors.pastelPink,
-    difficultyLabels: const {
-      'easy_2x2': '쉬움 (2x2)',
-      'normal_4x4': '보통 (4x4)',
-    },
     screenBuilder: (_) => const MemoryMatchScreen(),
   ),
   const GameInfo(

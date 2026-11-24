@@ -24,8 +24,7 @@ class FakeScoreRepository implements ScoreRepository {
   Future<GameRecord?> getBestRecord({
     required String gameId,
     required String difficulty,
-  }) async =>
-      null;
+  }) async => null;
 
   @override
   Future<void> clearAll() async => records.clear();
@@ -43,18 +42,18 @@ void main() {
     expect(find.text('내 기록 보기'), findsOneWidget);
   });
 
-  testWidgets('기억력 게임 카드를 누르면 임시 화면으로 가고, 뒤로 가면 허브로 돌아온다',
-      (tester) async {
+  testWidgets('기억력 게임 카드를 누르면 Stage 1 게임 화면으로 가고, 뒤로 가면 허브로 돌아온다', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       KidsBrainPuzzleApp(scoreRepository: FakeScoreRepository()),
     );
 
     await tester.tap(find.text('기억력 짝 맞추기'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('기억력 짝 맞추기 게임 화면 (Phase 2에서 구현 예정)'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('stat_stage')), findsOneWidget);
+    await tester.tap(find.text('시작!'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
@@ -95,7 +94,7 @@ void main() {
 
     await tester.tap(find.text('내 기록 보기'));
     await tester.pumpAndSettle();
-    expect(find.text('쉬움 (2x2)'), findsOneWidget);
+    expect(find.text('easy_2x2'), findsOneWidget);
     expect(find.text('🔁 3번'), findsOneWidget);
     expect(find.text('⏱️ 1:15'), findsOneWidget);
   });

@@ -17,8 +17,8 @@ class RecordsScreen extends StatefulWidget {
 }
 
 class _RecordsScreenState extends State<RecordsScreen> {
-  late final Future<List<GameRecord>> _bestRecords =
-      widget.scoreRepository.getBestRecords();
+  late final Future<List<GameRecord>> _bestRecords = widget.scoreRepository
+      .getBestRecords();
 
   @override
   Widget build(BuildContext context) {
@@ -32,10 +32,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return const _Message(
-                emoji: '😢',
-                text: '기록을 불러오지 못했어요.',
-              );
+              return const _Message(emoji: '😢', text: '기록을 불러오지 못했어요.');
             }
             final records = snapshot.data ?? const [];
             if (records.isEmpty) {
@@ -87,10 +84,12 @@ class _RecordTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(game?.title ?? record.gameId, style: textTheme.titleMedium),
                 Text(
-                  game?.difficultyLabel(record.difficulty) ??
-                      record.difficulty,
+                  game?.title ?? record.gameId,
+                  style: textTheme.titleMedium,
+                ),
+                Text(
+                  game?.difficultyLabel(record.difficulty) ?? record.difficulty,
                   style: textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),

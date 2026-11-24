@@ -62,8 +62,8 @@ class HomeScreen extends StatelessWidget {
                       final columns = width >= 840
                           ? 3
                           : width >= 520
-                              ? 2
-                              : 1;
+                          ? 2
+                          : 1;
                       final cardWidth =
                           (width - _cardSpacing * (columns - 1)) / columns;
 

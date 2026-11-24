@@ -10,7 +10,7 @@ import 'score_repository.dart';
 /// 앱에서 `shared_preferences`를 쓰는 곳은 이 파일 하나뿐이다.
 class LocalScoreRepository implements ScoreRepository {
   LocalScoreRepository({SharedPreferencesAsync? preferences})
-      : _preferences = preferences ?? SharedPreferencesAsync();
+    : _preferences = preferences ?? SharedPreferencesAsync();
 
   static const _storageKey = 'game_records';
 
@@ -19,10 +19,10 @@ class LocalScoreRepository implements ScoreRepository {
   @override
   Future<void> saveRecord(GameRecord record) async {
     final stored = await _preferences.getStringList(_storageKey) ?? [];
-    await _preferences.setStringList(
-      _storageKey,
-      [...stored, jsonEncode(record.toJson())],
-    );
+    await _preferences.setStringList(_storageKey, [
+      ...stored,
+      jsonEncode(record.toJson()),
+    ]);
   }
 
   @override
@@ -38,9 +38,7 @@ class LocalScoreRepository implements ScoreRepository {
         // 형식이 깨진 항목은 건너뛴다.
       }
     }
-    return records
-        .where((r) => gameId == null || r.gameId == gameId)
-        .toList()
+    return records.where((r) => gameId == null || r.gameId == gameId).toList()
       ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
   }
 
@@ -54,11 +52,10 @@ class LocalScoreRepository implements ScoreRepository {
         best[key] = record;
       }
     }
-    return best.values.toList()
-      ..sort((a, b) {
-        final byGame = a.gameId.compareTo(b.gameId);
-        return byGame != 0 ? byGame : a.difficulty.compareTo(b.difficulty);
-      });
+    return best.values.toList()..sort((a, b) {
+      final byGame = a.gameId.compareTo(b.gameId);
+      return byGame != 0 ? byGame : a.difficulty.compareTo(b.difficulty);
+    });
   }
 
   @override

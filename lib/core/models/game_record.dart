@@ -34,20 +34,20 @@ class GameRecord {
   }
 
   Map<String, dynamic> toJson() => {
-        'gameId': gameId,
-        'difficulty': difficulty,
-        'moves': moves,
-        'elapsedSeconds': elapsedSeconds,
-        'playedAt': playedAt.toIso8601String(),
-      };
+    'gameId': gameId,
+    'difficulty': difficulty,
+    'moves': moves,
+    'elapsedSeconds': elapsedSeconds,
+    'playedAt': playedAt.toIso8601String(),
+  };
 
   factory GameRecord.fromJson(Map<String, dynamic> json) => GameRecord(
-        gameId: json['gameId'] as String,
-        difficulty: json['difficulty'] as String,
-        moves: json['moves'] as int,
-        elapsedSeconds: json['elapsedSeconds'] as int,
-        playedAt: DateTime.parse(json['playedAt'] as String),
-      );
+    gameId: json['gameId'] as String,
+    difficulty: json['difficulty'] as String,
+    moves: json['moves'] as int,
+    elapsedSeconds: json['elapsedSeconds'] as int,
+    playedAt: DateTime.parse(json['playedAt'] as String),
+  );
 
   @override
   bool operator ==(Object other) =>
