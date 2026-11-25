@@ -2,10 +2,13 @@ import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:kids_brain_puzzle/games/memory_match/memory_match_controller.dart';
 import 'package:kids_brain_puzzle/games/memory_match/models/memory_card.dart';
 import 'package:kids_brain_puzzle/games/memory_match/models/memory_match_event.dart';
 import 'package:kids_brain_puzzle/games/memory_match/models/memory_match_rules.dart';
+
+import 'helpers/no_preview.dart';
 
 /// 일반 카드의 그림 → 두 위치
 Map<String, List<int>> _pairs(MemoryMatchController c) {
@@ -46,6 +49,7 @@ MemoryMatchController _controller({
   bool start = true,
 }) {
   final c = MemoryMatchController(
+    previewDurationFor: noPreview,
     startStage: stage,
     initialScore: score,
     pickSpecialCard: (_) => special,
@@ -104,6 +108,7 @@ void main() {
       for (final stage in [1, 2]) {
         for (var seed = 0; seed < 20; seed++) {
           final c = MemoryMatchController(
+            previewDurationFor: noPreview,
             startStage: stage,
             random: Random(seed),
             decideEvenGridSpecials: (_) => true,
@@ -117,6 +122,7 @@ void main() {
     test('3x3의 특수 카드는 항상 ⭐ 찬스 1장 (폭탄을 고르게 해도)', () {
       for (var seed = 0; seed < 20; seed++) {
         final c = MemoryMatchController(
+          previewDurationFor: noPreview,
           startStage: 3,
           random: Random(seed),
           pickSpecialCard: (_) => SpecialCardKind.bomb,
@@ -132,6 +138,7 @@ void main() {
       final counts = {
         for (var seed = 0; seed < 30; seed++)
           (MemoryMatchController(
+            previewDurationFor: noPreview,
             startStage: 4,
             random: Random(seed),
           )..dispose()).cards.where((c) => c.isSpecial).length,
@@ -140,7 +147,7 @@ void main() {
     });
 
     test('시작 시 20초, 기회 5번, 점수 0', () {
-      final c = MemoryMatchController();
+      final c = MemoryMatchController(previewDurationFor: noPreview);
       expect(c.stage, 1);
       expect(c.remainingSeconds, 20);
       expect(c.remainingChances, 5);
@@ -153,6 +160,7 @@ void main() {
       final layouts = {
         for (var seed = 0; seed < 10; seed++)
           (MemoryMatchController(
+            previewDurationFor: noPreview,
             startStage: 3,
             random: Random(seed),
           )..dispose()).cards.map((c) => c.emoji).join(),
@@ -164,6 +172,7 @@ void main() {
       final kinds = {
         for (var seed = 0; seed < 30; seed++)
           (MemoryMatchController(
+            previewDurationFor: noPreview,
             startStage: 7,
             random: Random(seed),
           )..dispose()).cards.firstWhere((c) => c.isSpecial).special,
@@ -823,6 +832,251 @@ void main() {
         );
         // 대부분의 경우 배치가 새로 섞인다 (같을 확률은 거의 0)
         expect(c.cards.map((card) => card.emoji).join(), isNot(before));
+        c.dispose();
+      });
+    });
+  });
+
+  group('판 기록 (Phase 3)', () {
+    test('시도 횟수는 카드 두 장을 뒤집을 때마다 센다 (맞든 틀리든)', () {
+      fakeAsync((async) {
+        final c = _controller(stage: 3);
+        final (a, b) = _mismatch(c);
+        c.flip(a);
+        expect(c.runMoves, 0, reason: '한 장만 뒤집으면 아직 아니다');
+        c.flip(b);
+        expect(c.runMoves, 1);
+        async.elapse(MemoryMatchRules.mismatchDelay);
+
+        final pair = _pairs(c).values.first;
+        c.flip(pair[0]);
+        c.flip(pair[1]);
+        expect(c.runMoves, 2);
+
+        // 특수 카드는 세지 않는다
+        c.flip(_specialIndex(c));
+        expect(c.runMoves, 2);
+        c.dispose();
+      });
+    });
+
+    test('플레이 시간은 시간이 흐른 동안만 센다 (팝업·시작 전 제외)', () {
+      fakeAsync((async) {
+        final c = _controller(stage: 4, score: 500, start: false);
+        async.elapse(const Duration(seconds: 5)); // 시작 팝업
+        expect(c.runPlaySeconds, 0);
+
+        c.start();
+        async.elapse(const Duration(seconds: 3));
+        expect(c.runPlaySeconds, 3);
+
+        c.beginExchange(); // 교환 팝업 동안 멈춤
+        async.elapse(const Duration(seconds: 10));
+        c.cancelExchange();
+        async.elapse(const Duration(seconds: 2));
+        expect(c.runPlaySeconds, 5);
+        c.dispose();
+      });
+    });
+
+    test('toRecord: 지금 판의 결과를 담는다', () {
+      fakeAsync((async) {
+        final now = DateTime(2026, 11, 24, 15, 0);
+        final c = MemoryMatchController(
+          previewDurationFor: noPreview,
+          startStage: 2,
+          clock: () => now,
+        )..start();
+        async.elapse(const Duration(seconds: 4));
+        final (a, b) = _mismatch(c);
+        c.flip(a);
+        c.flip(b);
+
+        final record = c.toRecord();
+        expect(record.id, c.runId);
+        expect(record.gameId, 'memory_match');
+        expect(record.stage, 2);
+        expect(record.cleared, isFalse);
+        expect(record.score, c.score);
+        expect(record.elapsedSeconds, 4);
+        expect(record.moves, 1);
+        expect(record.playedAt, now);
+        c.dispose();
+      });
+    });
+
+    test('Stage를 넘어가도 이어서 센다', () {
+      fakeAsync((async) {
+        final c = _controller();
+        async.elapse(const Duration(seconds: 2));
+        _solve(c); // 2쌍 → 시도 2
+        c.nextStage();
+        c.start();
+        async.elapse(const Duration(seconds: 3));
+        final (a, b) = _mismatch(c);
+        c.flip(a);
+        c.flip(b);
+        expect(c.runPlaySeconds, 5);
+        expect(c.runMoves, 3);
+        c.dispose();
+      });
+    });
+
+    test('재도전은 새 판: id가 바뀌고 0부터 센다', () {
+      fakeAsync((async) {
+        final c = _controller();
+        final firstId = c.runId;
+        async.elapse(const Duration(seconds: 3));
+        _solve(c);
+        c.restart();
+        expect(c.runId, isNot(firstId));
+        expect(c.runPlaySeconds, 0);
+        expect(c.runMoves, 0);
+        c.dispose();
+      });
+    });
+
+    test('이어하기는 같은 판: id와 누적 값이 그대로다', () {
+      fakeAsync((async) {
+        final c = _controller(stage: 5, score: 900);
+        final id = c.runId;
+        async.elapse(const Duration(seconds: 2));
+        while (c.status == MemoryMatchStatus.playing) {
+          final (a, b) = _mismatch(c);
+          c.flip(a);
+          c.flip(b);
+          async.elapse(MemoryMatchRules.mismatchDelay);
+        }
+        final moves = c.runMoves;
+        final seconds = c.runPlaySeconds;
+
+        c.continueStage();
+        expect(c.runId, id);
+        expect(c.runMoves, moves);
+        expect(c.runPlaySeconds, seconds);
+        c.dispose();
+      });
+    });
+
+    test('마지막 Stage를 클리어하면 cleared 기록이 된다', () {
+      fakeAsync((async) {
+        final c = _controller(stage: MemoryMatchRules.lastStage);
+        _solve(c);
+        expect(c.status, MemoryMatchStatus.allCleared);
+        final record = c.toRecord();
+        expect(record.cleared, isTrue);
+        expect(record.stage, MemoryMatchRules.lastStage);
+        c.dispose();
+      });
+    });
+  });
+
+  group('시작 미리 보기', () {
+    test('미리 보기 시간: Stage 1~4는 3초, Stage 5부터 5초', () {
+      expect(
+        [for (var s = 1; s <= 6; s++) MemoryMatchRules.previewDurationFor(s)],
+        [
+          for (final sec in [3, 3, 3, 3, 5, 5]) Duration(seconds: sec),
+        ],
+      );
+      expect(
+        MemoryMatchRules.previewDurationFor(MemoryMatchRules.lastStage),
+        const Duration(seconds: 5),
+      );
+    });
+
+    for (final (stage, seconds) in [(1, 3), (4, 3), (5, 5), (9, 5)]) {
+      test('Stage $stage: 시작하면 $seconds초 동안 카드를 모두 보여 주고, 그동안 시간이 멈춘다', () {
+        fakeAsync((async) {
+          final c = MemoryMatchController(
+            startStage: stage,
+            decideEvenGridSpecials: (_) => false,
+          );
+          expect(c.previewDuration, Duration(seconds: seconds));
+          final limit = c.remainingSeconds;
+
+          c.start();
+          expect(c.isPreviewing, isTrue);
+          expect(c.acceptsInput, isFalse);
+          expect(c.isTimerRunning, isFalse);
+          for (var i = 0; i < c.cards.length; i++) {
+            expect(
+              c.isFaceVisible(i),
+              !c.cards[i].isSpecial,
+              reason: '특수 카드만 빼고 모두 보인다',
+            );
+          }
+          c.flip(0);
+          expect(c.cards[0].isFaceUp, isFalse, reason: '미리 보기 중에는 못 뒤집는다');
+
+          async.elapse(
+            Duration(seconds: seconds) - const Duration(milliseconds: 1),
+          );
+          expect(c.isPreviewing, isTrue);
+          expect(c.remainingSeconds, limit);
+
+          async.elapse(const Duration(milliseconds: 1));
+          expect(c.isPreviewing, isFalse);
+          expect(c.acceptsInput, isTrue);
+          expect(c.isTimerRunning, isTrue);
+          expect(
+            [for (var i = 0; i < c.cards.length; i++) c.isFaceVisible(i)],
+            everyElement(isFalse),
+            reason: '미리 보기가 끝나면 모두 덮는다',
+          );
+
+          async.elapse(const Duration(seconds: 1));
+          expect(c.remainingSeconds, limit - 1, reason: '이때부터 시간이 준다');
+          expect(c.runPlaySeconds, 1, reason: '미리 보기는 플레이 시간에 넣지 않는다');
+          c.dispose();
+        });
+      });
+    }
+
+    test('특수 카드가 있는 Stage에서도 특수 카드는 미리 보기에 보이지 않는다', () {
+      fakeAsync((async) {
+        final c = MemoryMatchController(startStage: 3)..start();
+        final special = c.cards.indexWhere((card) => card.isSpecial);
+        expect(special, isNot(-1));
+        expect(c.isFaceVisible(special), isFalse);
+        c.dispose();
+      });
+    });
+
+    test('미리 보기 중에는 점수 교환을 할 수 없다', () {
+      fakeAsync((async) {
+        final c = MemoryMatchController(startStage: 4, initialScore: 500)
+          ..start();
+        expect(c.canExchange, isFalse);
+        async.elapse(c.previewDuration);
+        expect(c.canExchange, isTrue);
+        c.dispose();
+      });
+    });
+
+    test('다음 Stage도 시작할 때마다 다시 미리 보여 준다', () {
+      fakeAsync((async) {
+        final c = MemoryMatchController(decideEvenGridSpecials: (_) => false)
+          ..start();
+        async.elapse(c.previewDuration);
+        _solve(c);
+        c.nextStage();
+        expect(c.isPreviewing, isFalse, reason: '시작 팝업을 누르기 전');
+        c.start();
+        expect(c.isPreviewing, isTrue);
+        async.elapse(c.previewDuration);
+        expect(c.isPreviewing, isFalse);
+        c.dispose();
+      });
+    });
+
+    test('미리 보기 중에 재도전하면 미리 보기가 풀린다', () {
+      fakeAsync((async) {
+        final c = MemoryMatchController()..start();
+        c.restart();
+        expect(c.isPreviewing, isFalse);
+        async.elapse(const Duration(seconds: 10));
+        expect(c.status, MemoryMatchStatus.ready, reason: '타이머가 남아 돌지 않는다');
         c.dispose();
       });
     });

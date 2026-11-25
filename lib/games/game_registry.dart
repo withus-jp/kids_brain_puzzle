@@ -1,6 +1,7 @@
 import '../core/models/game_info.dart';
 import '../core/theme/app_theme.dart';
 import 'memory_match/memory_match_screen.dart';
+import 'memory_match/models/memory_match_rules.dart';
 
 /// 게임 허브에 표시할 게임 목록.
 ///
@@ -12,7 +13,11 @@ final List<GameInfo> gameRegistry = [
     description: '같은 그림을 찾아 스테이지를 깨요!',
     emoji: '🃏',
     color: AppColors.pastelPink,
-    screenBuilder: (_) => const MemoryMatchScreen(),
+    stageDetail: (stage) => MemoryMatchRules.gridOf(
+      stage.clamp(MemoryMatchRules.firstStage, MemoryMatchRules.lastStage),
+    ).label,
+    screenBuilder: (_, scoreRepository) =>
+        MemoryMatchScreen(scoreRepository: scoreRepository),
   ),
   const GameInfo(
     id: 'coming_soon',

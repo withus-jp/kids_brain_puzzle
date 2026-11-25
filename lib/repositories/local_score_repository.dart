@@ -8,25 +8,18 @@ import 'score_repository.dart';
 /// `shared_preferences`에 기록을 JSON 문자열 목록으로 저장하는 구현체.
 ///
 /// 앱에서 `shared_preferences`를 쓰는 곳은 이 파일 하나뿐이다.
+/// 모바일은 기기 저장소, 웹은 브라우저 localStorage에 남으므로 앱을 다시 켜거나
+/// 새로고침해도 기록이 유지된다.
 class LocalScoreRepository implements ScoreRepository {
   LocalScoreRepository({SharedPreferencesAsync? preferences})
     : _preferences = preferences ?? SharedPreferencesAsync();
 
-  static const _storageKey = 'game_records';
+  /// 저장 키. 형식이 바뀐 Phase 3부터 새 키를 쓴다.
+  static const _storageKey = 'game_records_v2';
 
   final SharedPreferencesAsync _preferences;
 
-  @override
-  Future<void> saveRecord(GameRecord record) async {
-    final stored = await _preferences.getStringList(_storageKey) ?? [];
-    await _preferences.setStringList(_storageKey, [
-      ...stored,
-      jsonEncode(record.toJson()),
-    ]);
-  }
-
-  @override
-  Future<List<GameRecord>> getRecords({String? gameId}) async {
+  Future<List<GameRecord>> _load() async {
     final stored = await _preferences.getStringList(_storageKey) ?? [];
     final records = <GameRecord>[];
     for (final item in stored) {
@@ -38,34 +31,36 @@ class LocalScoreRepository implements ScoreRepository {
         // 형식이 깨진 항목은 건너뛴다.
       }
     }
-    return records.where((r) => gameId == null || r.gameId == gameId).toList()
-      ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+    return records;
+  }
+
+  Future<void> _store(List<GameRecord> records) => _preferences.setStringList(
+    _storageKey,
+    [for (final r in records) jsonEncode(r.toJson())],
+  );
+
+  @override
+  Future<void> saveRecord(GameRecord record) async {
+    final records = await _load()
+      ..removeWhere((r) => r.id == record.id);
+    await _store([...records, record]);
   }
 
   @override
-  Future<List<GameRecord>> getBestRecords() async {
-    final best = <String, GameRecord>{};
-    for (final record in await getRecords()) {
-      final key = '${record.gameId}/${record.difficulty}';
-      final current = best[key];
-      if (current == null || record.isBetterThan(current)) {
-        best[key] = record;
-      }
-    }
-    return best.values.toList()..sort((a, b) {
-      final byGame = a.gameId.compareTo(b.gameId);
-      return byGame != 0 ? byGame : a.difficulty.compareTo(b.difficulty);
-    });
+  Future<List<GameRecord>> getRecords({String? gameId}) async {
+    final records = await _load();
+    return records.where((r) => gameId == null || r.gameId == gameId).toList()
+      ..sort(GameRecord.compareByStageThenRecent);
   }
 
   @override
   Future<GameRecord?> getBestRecord({
     required String gameId,
-    required String difficulty,
+    String? excludeId,
   }) async {
     GameRecord? best;
     for (final record in await getRecords(gameId: gameId)) {
-      if (record.difficulty != difficulty) continue;
+      if (record.id == excludeId) continue;
       if (best == null || record.isBetterThan(best)) best = record;
     }
     return best;

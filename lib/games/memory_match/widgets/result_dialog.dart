@@ -67,117 +67,140 @@ class ResultDialog extends StatelessWidget {
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 64)),
-                const SizedBox(height: 8),
-                Text(title, style: textTheme.headlineMedium),
-                if (message != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    message!,
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyLarge,
-                  ),
-                ],
-                if (details.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  for (final (label, value) in details)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(label, style: textTheme.bodyMedium),
-                          ),
-                          Text(value, style: textTheme.titleMedium),
-                        ],
-                      ),
-                    ),
-                ],
-                if (extra != null) ...[const SizedBox(height: 16), extra!],
-                if (score != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    key: const ValueKey('result_score'),
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.pastelSky,
-                      borderRadius: BorderRadius.circular(AppRadius.button),
-                    ),
-                    child: Column(
-                      children: [
-                        Text('점수', style: textTheme.bodyMedium),
-                        Text('$score점', style: textTheme.headlineMedium),
+          // 내용이 길면 내용만 스크롤하고, 버튼은 항상 아래에 보이게 둔다.
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(emoji, style: const TextStyle(fontSize: 64)),
+                      const SizedBox(height: 8),
+                      Text(title, style: textTheme.headlineMedium),
+                      if (message != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          message!,
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodyLarge,
+                        ),
                       ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                if (highlightAction case final action?) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      key: const ValueKey('result_highlight_action'),
-                      onPressed: action.onPressed,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF8A3D),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.pastelGray,
-                        disabledForegroundColor: AppColors.textSoft,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(action.label),
-                      ),
-                    ),
-                  ),
-                  if (highlightNote != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      highlightNote!,
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                ],
-                Row(
-                  children: [
-                    for (final (i, action) in actions.indexed) ...[
-                      if (i > 0) const SizedBox(width: 12),
-                      Expanded(
-                        child: action.primary
-                            ? FilledButton(
-                                onPressed: action.onPressed,
-                                child: Text(action.label),
-                              )
-                            : OutlinedButton(
-                                onPressed: action.onPressed,
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(64, 56),
-                                  textStyle: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.button,
-                                    ),
+                      if (details.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        for (final (label, value) in details)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    style: textTheme.bodyMedium,
                                   ),
                                 ),
-                                child: Text(action.label),
-                              ),
-                      ),
+                                Text(value, style: textTheme.titleMedium),
+                              ],
+                            ),
+                          ),
+                      ],
+                      if (extra != null) ...[
+                        const SizedBox(height: 16),
+                        extra!,
+                      ],
+                      if (score != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          key: const ValueKey('result_score'),
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.pastelSky,
+                            borderRadius: BorderRadius.circular(
+                              AppRadius.button,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text('점수', style: textTheme.bodyMedium),
+                              Text('$score점', style: textTheme.headlineMedium),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (highlightAction case final action?) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          key: const ValueKey('result_highlight_action'),
+                          onPressed: action.onPressed,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF8A3D),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: AppColors.pastelGray,
+                            disabledForegroundColor: AppColors.textSoft,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(action.label),
+                          ),
+                        ),
+                      ),
+                      if (highlightNote != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          highlightNote!,
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodyMedium,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        for (final (i, action) in actions.indexed) ...[
+                          if (i > 0) const SizedBox(width: 12),
+                          Expanded(
+                            child: action.primary
+                                ? FilledButton(
+                                    onPressed: action.onPressed,
+                                    child: Text(action.label),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: action.onPressed,
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(64, 56),
+                                      textStyle: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.button,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(action.label),
+                                  ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

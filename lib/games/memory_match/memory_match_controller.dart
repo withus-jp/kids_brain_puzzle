@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/models/game_record.dart';
 import 'models/memory_card.dart';
 import 'models/memory_match_event.dart';
 import 'models/memory_match_rules.dart';
@@ -40,6 +41,8 @@ class MemoryMatchController extends ChangeNotifier {
     SpecialCardKind Function(Random random)? pickSpecialCard,
     BombPenalty Function(Random random)? pickBombPenalty,
     bool Function(Random random)? decideEvenGridSpecials,
+    DateTime Function()? clock,
+    Duration Function(int stage)? previewDurationFor,
   }) : assert(
          startStage >= MemoryMatchRules.firstStage &&
              startStage <= MemoryMatchRules.lastStage,
@@ -50,10 +53,17 @@ class MemoryMatchController extends ChangeNotifier {
        _pickBombPenalty = pickBombPenalty ?? _randomBombPenalty,
        _decideEvenGridSpecials =
            decideEvenGridSpecials ?? _randomEvenGridSpecials,
+       _clock = clock ?? DateTime.now,
+       _previewDurationFor =
+           previewDurationFor ?? MemoryMatchRules.previewDurationFor,
        _stage = startStage,
        _score = initialScore {
+    _startRun();
     _startStage();
   }
+
+  /// 기록에 쓰는 게임 식별자
+  static const gameId = 'memory_match';
 
   static SpecialCardKind _randomSpecialCard(Random r) =>
       SpecialCardKind.values[r.nextInt(SpecialCardKind.values.length)];
@@ -69,6 +79,8 @@ class MemoryMatchController extends ChangeNotifier {
   final SpecialCardKind Function(Random) _pickSpecialCard;
   final BombPenalty Function(Random) _pickBombPenalty;
   final bool Function(Random) _decideEvenGridSpecials;
+  final DateTime Function() _clock;
+  final Duration Function(int stage) _previewDurationFor;
   final _events = StreamController<MemoryMatchEvent>.broadcast();
 
   int _stage;
@@ -80,15 +92,22 @@ class MemoryMatchController extends ChangeNotifier {
   int? _firstIndex;
   bool _isChecking = false;
   bool _isPeeking = false;
+  bool _isPreviewing = false;
   SpecialCardKind? _pendingSpecial;
   BombPenalty? _pendingBombPenalty;
   bool _isExchanging = false;
   StageClearResult? _lastClearResult;
+
+  // 한 판(재도전 전까지) 동안 누적하는 값. 이어하기를 해도 이어서 센다.
+  String _runId = '';
+  int _runPlaySeconds = 0;
+  int _runMoves = 0;
   bool _isDisposed = false;
 
   Timer? _ticker;
   Timer? _flipBackTimer;
   Timer? _peekTimer;
+  Timer? _previewTimer;
 
   /// 팝업·안내 문구 이벤트
   Stream<MemoryMatchEvent> get events => _events.stream;
@@ -115,6 +134,12 @@ class MemoryMatchController extends ChangeNotifier {
   /// ⭐ 별 카드로 모든 카드를 잠깐 보여 주는 중
   bool get isPeeking => _isPeeking;
 
+  /// Stage 시작 직후 카드를 모두 보여 주는 중인지 여부 (제한 시간 멈춤)
+  bool get isPreviewing => _isPreviewing;
+
+  /// 이번 Stage의 시작 미리 보기 시간
+  Duration get previewDuration => _previewDurationFor(_stage);
+
   /// 찬스!/꽝! 팝업이 떠 있어 [confirmSpecial]을 기다리는 특수 카드.
   /// 이 동안에는 타이머가 멈추고 카드를 누를 수 없다.
   SpecialCardKind? get pendingSpecial => _pendingSpecial;
@@ -136,18 +161,41 @@ class MemoryMatchController extends ChangeNotifier {
       _score >= MemoryMatchRules.exchangeCost &&
       acceptsInput;
 
+  /// 지금 판의 식별자. [restart]로 새 판을 시작하면 바뀐다.
+  String get runId => _runId;
+
+  /// 지금 판에서 실제로 플레이한 시간(초). 팝업으로 시간이 멈춘 동안은 빠진다.
+  int get runPlaySeconds => _runPlaySeconds;
+
+  /// 지금 판의 총 시도 횟수 (카드 두 장을 뒤집은 횟수)
+  int get runMoves => _runMoves;
+
+  /// 지금 판의 결과를 기록으로 만든다. 게임 오버·모두 클리어 때 저장한다.
+  GameRecord toRecord() => GameRecord(
+    id: _runId,
+    gameId: gameId,
+    stage: _stage,
+    cleared: _status == MemoryMatchStatus.allCleared,
+    score: _score,
+    elapsedSeconds: _runPlaySeconds,
+    moves: _runMoves,
+    playedAt: _clock(),
+  );
+
   /// 카드를 누를 수 있는 상태인지 여부
   bool get acceptsInput =>
       _status == MemoryMatchStatus.playing &&
       !_isChecking &&
       !_isPeeking &&
+      !_isPreviewing &&
       !_isExchanging &&
       _pendingSpecial == null;
 
   /// [index] 카드의 앞면을 화면에 보여야 하는지 여부 (별 카드 효과 포함)
   bool isFaceVisible(int index) {
     final card = _cards[index];
-    return card.isRevealed || (_isPeeking && !card.isSpecial);
+    return card.isRevealed ||
+        ((_isPeeking || _isPreviewing) && !card.isSpecial);
   }
 
   /// [index] 위치의 카드를 뒤집는다. 뒤집을 수 없는 상황이면 무시한다.
@@ -179,6 +227,7 @@ class MemoryMatchController extends ChangeNotifier {
       return;
     }
     _firstIndex = null;
+    _runMoves++;
 
     if (_cards[firstIndex].emoji == _cards[index].emoji) {
       _setCard(firstIndex, _cards[firstIndex].copyWith(isMatched: true));
@@ -204,11 +253,25 @@ class MemoryMatchController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stage 시작 팝업에서 확인을 눌렀을 때 호출한다. 이때부터 시간이 줄어든다.
+  /// Stage 시작 팝업에서 확인을 눌렀을 때 호출한다.
+  ///
+  /// 먼저 [previewDuration] 동안 카드를 모두 보여 준다(특수 카드 제외).
+  /// 미리 보기가 끝나면 카드를 덮고, 그때부터 시간이 줄어든다.
   void start() {
     if (_status != MemoryMatchStatus.ready) return;
     _status = MemoryMatchStatus.playing;
-    _startTicker();
+    final preview = previewDuration;
+    if (preview <= Duration.zero) {
+      _startTicker();
+    } else {
+      _isPreviewing = true;
+      _previewTimer = Timer(preview, () {
+        _previewTimer = null;
+        _isPreviewing = false;
+        if (_status == MemoryMatchStatus.playing) _startTicker();
+        _notify();
+      });
+    }
     notifyListeners();
   }
 
@@ -303,10 +366,11 @@ class MemoryMatchController extends ChangeNotifier {
     return true;
   }
 
-  /// Stage 1부터 점수 0으로 다시 시작한다.
+  /// Stage 1부터 점수 0으로 다시 시작한다. 새 판이 된다.
   void restart() {
     _stage = MemoryMatchRules.firstStage;
     _score = 0;
+    _startRun();
     _startStage();
     _emit(StageReadyEvent(_stage));
     notifyListeners();
@@ -322,10 +386,18 @@ class MemoryMatchController extends ChangeNotifier {
     _firstIndex = null;
     _isChecking = false;
     _isPeeking = false;
+    _isPreviewing = false;
     _pendingSpecial = null;
     _pendingBombPenalty = null;
     _lastClearResult = null;
     _deal();
+  }
+
+  void _startRun() {
+    _runId =
+        '${_clock().microsecondsSinceEpoch}-${_random.nextInt(1000000000)}';
+    _runPlaySeconds = 0;
+    _runMoves = 0;
   }
 
   void _startTicker() {
@@ -374,6 +446,7 @@ class MemoryMatchController extends ChangeNotifier {
 
   void _tick() {
     _remainingSeconds--;
+    _runPlaySeconds++;
     if (_remainingSeconds <= 0) {
       _remainingSeconds = 0;
       _gameOver(GameOverReason.timeUp);
@@ -468,6 +541,8 @@ class MemoryMatchController extends ChangeNotifier {
     _flipBackTimer = null;
     _peekTimer?.cancel();
     _peekTimer = null;
+    _previewTimer?.cancel();
+    _previewTimer = null;
   }
 
   void _emit(MemoryMatchEvent event) {

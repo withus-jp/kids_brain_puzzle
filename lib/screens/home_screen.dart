@@ -18,7 +18,11 @@ class HomeScreen extends StatelessWidget {
   void _openGame(BuildContext context, GameInfo game) {
     final builder = game.screenBuilder;
     if (builder == null) return;
-    Navigator.of(context).push(MaterialPageRoute(builder: builder));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => builder(context, scoreRepository),
+      ),
+    );
   }
 
   void _openRecords(BuildContext context) {

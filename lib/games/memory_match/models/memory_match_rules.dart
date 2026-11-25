@@ -91,6 +91,23 @@ abstract final class MemoryMatchRules {
   /// 틀린 카드를 다시 뒤집기까지 기다리는 시간
   static const mismatchDelay = Duration(milliseconds: 800);
 
+  /// Stage를 시작할 때 카드를 모두 보여 주는 시간: Stage 1~4는 3초, Stage 5부터 5초.
+  /// 이 동안은 제한 시간이 줄지 않고 카드를 누를 수 없다.
+  static Duration previewDurationFor(int stage) => Duration(
+    seconds: stage < longPreviewFromStage
+        ? shortPreviewSeconds
+        : longPreviewSeconds,
+  );
+
+  /// 미리 보기가 길어지는 첫 Stage
+  static const longPreviewFromStage = 5;
+
+  /// Stage 1~4 미리 보기 시간(초)
+  static const shortPreviewSeconds = 3;
+
+  /// Stage 5부터 미리 보기 시간(초)
+  static const longPreviewSeconds = 5;
+
   /// 별 카드가 다른 카드를 보여 주는 시간 (이 동안에도 제한 시간은 줄어든다)
   static const starPeekDuration = Duration(seconds: 3);
 

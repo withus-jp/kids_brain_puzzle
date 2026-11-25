@@ -2,33 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kids_brain_puzzle/core/models/game_record.dart';
 import 'package:kids_brain_puzzle/main.dart';
-import 'package:kids_brain_puzzle/repositories/score_repository.dart';
 
-/// 테스트용 메모리 저장소. UI가 인터페이스에만 의존하는지도 함께 확인한다.
-class FakeScoreRepository implements ScoreRepository {
-  FakeScoreRepository([List<GameRecord>? records]) : records = records ?? [];
+import 'helpers/fake_score_repository.dart';
 
-  final List<GameRecord> records;
-
-  @override
-  Future<void> saveRecord(GameRecord record) async => records.add(record);
-
-  @override
-  Future<List<GameRecord>> getRecords({String? gameId}) async =>
-      records.where((r) => gameId == null || r.gameId == gameId).toList();
-
-  @override
-  Future<List<GameRecord>> getBestRecords() async => records;
-
-  @override
-  Future<GameRecord?> getBestRecord({
-    required String gameId,
-    required String difficulty,
-  }) async => null;
-
-  @override
-  Future<void> clearAll() async => records.clear();
-}
+GameRecord _record({
+  required String id,
+  required int stage,
+  required int day,
+  int score = 100,
+  bool cleared = false,
+}) => GameRecord(
+  id: id,
+  gameId: 'memory_match',
+  stage: stage,
+  cleared: cleared,
+  score: score,
+  elapsedSeconds: 75,
+  moves: 12,
+  playedAt: DateTime(2026, 11, day, 9, 30),
+);
 
 void main() {
   testWidgets('허브에 게임 카드 2개와 기록 버튼이 보인다', (tester) async {
@@ -70,32 +62,85 @@ void main() {
     expect(find.text('두뇌 퍼즐 놀이터'), findsOneWidget);
   });
 
-  testWidgets('기록이 없으면 안내 문구를 보여 준다', (tester) async {
-    await tester.pumpWidget(
-      KidsBrainPuzzleApp(scoreRepository: FakeScoreRepository()),
-    );
+  group('내 기록 화면', () {
+    testWidgets('기록이 없으면 안내 문구를 보여 준다', (tester) async {
+      await tester.pumpWidget(
+        KidsBrainPuzzleApp(scoreRepository: FakeScoreRepository()),
+      );
 
-    await tester.tap(find.text('내 기록 보기'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('아직 기록이 없어요'), findsOneWidget);
-  });
+      await tester.tap(find.text('내 기록 보기'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('아직 기록이 없어요'), findsOneWidget);
+    });
 
-  testWidgets('저장된 최고 기록을 보여 준다', (tester) async {
-    final repository = FakeScoreRepository([
-      GameRecord(
-        gameId: 'memory_match',
-        difficulty: 'easy_2x2',
-        moves: 3,
-        elapsedSeconds: 75,
-        playedAt: DateTime(2026, 11, 24),
-      ),
-    ]);
-    await tester.pumpWidget(KidsBrainPuzzleApp(scoreRepository: repository));
+    testWidgets('최고 Stage 순, 같으면 최신순으로 보여 준다', (tester) async {
+      final repository = FakeScoreRepository([
+        _record(id: 'old3', stage: 3, day: 1),
+        _record(id: 'best', stage: 8, day: 2, score: 2400),
+        _record(id: 'new3', stage: 3, day: 5),
+        _record(id: 's5', stage: 5, day: 4),
+      ]);
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(KidsBrainPuzzleApp(scoreRepository: repository));
 
-    await tester.tap(find.text('내 기록 보기'));
-    await tester.pumpAndSettle();
-    expect(find.text('easy_2x2'), findsOneWidget);
-    expect(find.text('🔁 3번'), findsOneWidget);
-    expect(find.text('⏱️ 1:15'), findsOneWidget);
+      await tester.tap(find.text('내 기록 보기'));
+      await tester.pumpAndSettle();
+
+      final order = ['best', 's5', 'new3', 'old3'];
+      final tops = [
+        for (final id in order)
+          tester.getTopLeft(find.byKey(ValueKey('record_$id'))).dy,
+      ];
+      for (var i = 0; i + 1 < tops.length; i++) {
+        expect(tops[i], lessThan(tops[i + 1]), reason: '${order[i]} 먼저');
+      }
+
+      // 순위와 최고 기록 표시
+      final best = find.byKey(const ValueKey('record_best'));
+      expect(
+        find.descendant(of: best, matching: find.text('1위')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: best, matching: find.text('🏆')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: best, matching: find.text('5x6')),
+        findsOneWidget,
+        reason: 'Stage 8 = 5x6',
+      );
+      expect(find.text('Stage 8 · 2400점'), findsOneWidget, reason: '요약');
+      expect(find.text('4판'), findsOneWidget);
+    });
+
+    testWidgets('기록 한 칸에 점수·시간·시도·날짜·모두 클리어를 보여 준다', (tester) async {
+      final repository = FakeScoreRepository([
+        _record(id: 'win', stage: 17, day: 24, score: 9000, cleared: true),
+      ]);
+      await tester.pumpWidget(KidsBrainPuzzleApp(scoreRepository: repository));
+
+      await tester.tap(find.text('내 기록 보기'));
+      await tester.pumpAndSettle();
+      final tile = find.byKey(const ValueKey('record_win'));
+      for (final text in [
+        'Stage 17',
+        '10x10',
+        '🎉 모두 클리어',
+        '⭐ 9000점',
+        '⏱️ 1:15',
+        '🔁 12번',
+        '📅 2026.11.24 09:30',
+      ]) {
+        expect(
+          find.descendant(of: tile, matching: find.text(text)),
+          findsOneWidget,
+          reason: text,
+        );
+      }
+      expect(find.text('모두 클리어! · 9000점'), findsOneWidget);
+    });
   });
 }
