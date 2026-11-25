@@ -18,7 +18,7 @@ class KidsBrainPuzzleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '두뇌 퍼즐 놀이터',
+      title: '고고씽',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       home: HomeScreen(scoreRepository: scoreRepository),
