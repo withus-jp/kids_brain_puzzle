@@ -8,7 +8,7 @@ abstract interface class ScoreRepository {
   /// 기록을 저장한다. 같은 [GameRecord.id]가 이미 있으면 새 기록으로 덮어쓴다.
   Future<void> saveRecord(GameRecord record);
 
-  /// 저장된 기록을 도달 Stage가 높은 순, 같으면 최신순으로 돌려준다.
+  /// 저장된 기록을 랭킹 순서로 돌려준다 ([GameRecord.compareForRanking]: 점수 → 도달 Stage → 모두 클리어 → 최신순).
   /// [gameId]를 주면 그 게임만 돌려준다.
   Future<List<GameRecord>> getRecords({String? gameId});
 

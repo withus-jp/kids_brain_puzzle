@@ -26,7 +26,7 @@ class FakeScoreRepository implements ScoreRepository {
   @override
   Future<List<GameRecord>> getRecords({String? gameId}) async =>
       records.where((r) => gameId == null || r.gameId == gameId).toList()
-        ..sort(GameRecord.compareByStageThenRecent);
+        ..sort(GameRecord.compareForRanking);
 
   @override
   Future<GameRecord?> getBestRecord({

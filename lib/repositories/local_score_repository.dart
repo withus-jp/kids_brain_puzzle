@@ -50,7 +50,7 @@ class LocalScoreRepository implements ScoreRepository {
   Future<List<GameRecord>> getRecords({String? gameId}) async {
     final records = await _load();
     return records.where((r) => gameId == null || r.gameId == gameId).toList()
-      ..sort(GameRecord.compareByStageThenRecent);
+      ..sort(GameRecord.compareForRanking);
   }
 
   @override

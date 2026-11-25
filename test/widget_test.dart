@@ -116,6 +116,62 @@ void main() {
       expect(find.text('4판'), findsOneWidget);
     });
 
+    testWidgets('Stage가 낮아도 점수가 높으면 위에 온다', (tester) async {
+      final repository = FakeScoreRepository([
+        _record(id: 'far', stage: 9, day: 1, score: 100),
+        _record(id: 'rich', stage: 7, day: 2, score: 2570),
+      ]);
+      await tester.pumpWidget(KidsBrainPuzzleApp(scoreRepository: repository));
+      await tester.tap(find.text('내 기록 보기'));
+      await tester.pumpAndSettle();
+
+      final rich = find.byKey(const ValueKey('record_rich'));
+      final far = find.byKey(const ValueKey('record_far'));
+      expect(tester.getTopLeft(rich).dy, lessThan(tester.getTopLeft(far).dy));
+      expect(
+        find.descendant(of: rich, matching: find.text('1위')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: rich, matching: find.text('🏆')),
+        findsOneWidget,
+      );
+      expect(find.text('Stage 7 · 2570점'), findsOneWidget, reason: '요약');
+    });
+
+    testWidgets('같은 Stage면 점수 높은 기록이 1위이고 🏆도 1위에 붙는다', (tester) async {
+      final repository = FakeScoreRepository([
+        _record(id: 'old_high', stage: 5, day: 1, score: 300),
+        _record(id: 'new_low', stage: 5, day: 9, score: 200),
+      ]);
+      await tester.pumpWidget(KidsBrainPuzzleApp(scoreRepository: repository));
+      await tester.tap(find.text('내 기록 보기'));
+      await tester.pumpAndSettle();
+
+      final first = find.byKey(const ValueKey('record_old_high'));
+      final second = find.byKey(const ValueKey('record_new_low'));
+      expect(
+        tester.getTopLeft(first).dy,
+        lessThan(tester.getTopLeft(second).dy),
+      );
+      expect(
+        find.descendant(of: first, matching: find.text('1위')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: first, matching: find.text('🏆')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: second, matching: find.text('2위')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: second, matching: find.text('🏆')),
+        findsNothing,
+      );
+    });
+
     testWidgets('기록 한 칸에 점수·시간·시도·날짜·모두 클리어를 보여 준다', (tester) async {
       final repository = FakeScoreRepository([
         _record(id: 'win', stage: 17, day: 24, score: 9000, cleared: true),

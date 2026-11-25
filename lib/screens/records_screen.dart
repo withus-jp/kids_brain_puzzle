@@ -6,7 +6,7 @@ import '../core/utils/formatters.dart';
 import '../games/game_registry.dart';
 import '../repositories/score_repository.dart';
 
-/// 저장된 판 기록을 도달 Stage가 높은 순(같으면 최신순)으로 보여 주는 화면.
+/// 저장된 판 기록을 랭킹 순서(점수 → 도달 Stage → 모두 클리어 → 최신순)로 보여 주는 화면.
 class RecordsScreen extends StatefulWidget {
   const RecordsScreen({super.key, required this.scoreRepository});
 

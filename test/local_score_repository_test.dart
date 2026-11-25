@@ -39,24 +39,31 @@ void main() {
       expect(GameRecord.fromJson(record.toJson()), record);
     });
 
-    test('순위: Stage 높은 쪽 → 모두 클리어 → 점수 높은 쪽', () {
+    test('순위: 점수 높은 쪽 → Stage 높은 쪽 → 모두 클리어', () {
       expect(
-        _record(stage: 5).isBetterThan(_record(stage: 4, score: 9999)),
+        _record(
+          stage: 4,
+          score: 300,
+        ).isBetterThan(_record(stage: 9, score: 100)),
         isTrue,
+        reason: '점수가 먼저',
+      );
+      expect(
+        _record(
+          stage: 5,
+          score: 200,
+        ).isBetterThan(_record(stage: 4, score: 200)),
+        isTrue,
+        reason: '점수가 같으면 Stage',
       );
       expect(
         _record(
           stage: 17,
           cleared: true,
-        ).isBetterThan(_record(stage: 17, score: 9999)),
+          score: 500,
+        ).isBetterThan(_record(stage: 17, score: 500)),
         isTrue,
-      );
-      expect(
-        _record(
-          stage: 5,
-          score: 300,
-        ).isBetterThan(_record(stage: 5, score: 200)),
-        isTrue,
+        reason: '그것도 같으면 모두 클리어',
       );
       expect(
         _record(
@@ -69,7 +76,7 @@ void main() {
     });
   });
 
-  test('저장한 기록을 Stage 높은 순, 같으면 최신순으로 돌려준다', () async {
+  test('점수가 모두 같으면 Stage 높은 순, 같으면 최신순으로 돌려준다', () async {
     await repository.saveRecord(_record(id: 'a', stage: 3, day: 1));
     await repository.saveRecord(_record(id: 'b', stage: 7, day: 2));
     await repository.saveRecord(_record(id: 'c', stage: 3, day: 5));
@@ -77,6 +84,46 @@ void main() {
 
     final ids = (await repository.getRecords()).map((r) => r.id);
     expect(ids, ['d', 'b', 'c', 'a']);
+  });
+
+  test('랭킹 순서: 점수 → Stage → 모두 클리어 → 최신순', () async {
+    await repository.saveRecord(
+      _record(id: 'new_low', stage: 5, score: 200, day: 9),
+    );
+    await repository.saveRecord(
+      _record(id: 'old_high', stage: 5, score: 300, day: 1),
+    );
+    await repository.saveRecord(
+      _record(id: 'tie_old', stage: 5, score: 100, day: 2),
+    );
+    await repository.saveRecord(
+      _record(id: 'tie_new', stage: 5, score: 100, day: 3),
+    );
+    await repository.saveRecord(
+      _record(id: 'cleared', stage: 17, cleared: true, score: 100, day: 4),
+    );
+    await repository.saveRecord(
+      _record(id: 's9', stage: 9, score: 100, day: 5),
+    );
+    await repository.saveRecord(
+      _record(id: 'top', stage: 3, score: 9999, day: 6),
+    );
+
+    final ids = (await repository.getRecords()).map((r) => r.id);
+    expect(ids, [
+      'top', // 점수가 가장 높다 (Stage는 낮아도)
+      'old_high',
+      'new_low',
+      'cleared', // 100점끼리: 모두 클리어(Stage 17)
+      's9', // 100점끼리: Stage 9
+      'tie_new', // 100점·Stage 5끼리: 최신순
+      'tie_old',
+    ]);
+    expect(
+      (await repository.getBestRecord(gameId: 'memory_match'))?.id,
+      ids.first,
+      reason: '1위가 곧 최고 기록',
+    );
   });
 
   test('같은 id로 저장하면 덮어쓴다 (이어하기)', () async {
@@ -96,9 +143,9 @@ void main() {
   });
 
   test('최고 기록 찾기 (excludeId로 같은 판 제외)', () async {
-    await repository.saveRecord(_record(id: 'a', stage: 5, score: 100));
-    await repository.saveRecord(_record(id: 'b', stage: 9, score: 50));
-    await repository.saveRecord(_record(id: 'c', stage: 9, score: 80));
+    await repository.saveRecord(_record(id: 'a', stage: 9, score: 50));
+    await repository.saveRecord(_record(id: 'b', stage: 4, score: 80));
+    await repository.saveRecord(_record(id: 'c', stage: 5, score: 100));
 
     expect((await repository.getBestRecord(gameId: 'memory_match'))?.id, 'c');
     expect(

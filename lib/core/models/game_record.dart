@@ -40,19 +40,22 @@ class GameRecord {
 
   /// 이 기록이 [other]보다 좋은지 여부.
   ///
-  /// 도달 Stage가 높을수록 → 같으면 모두 클리어한 쪽 → 같으면 점수가 높을수록 좋다.
+  /// 점수가 높을수록 → 같으면 도달 Stage가 높을수록 → 같으면 모두 클리어한 쪽이 좋다.
   bool isBetterThan(GameRecord other) => compareByRank(this, other) < 0;
 
   /// 좋은 기록이 앞에 오도록 정렬하는 비교 함수 (순위 기준).
   static int compareByRank(GameRecord a, GameRecord b) {
+    if (a.score != b.score) return b.score.compareTo(a.score);
     if (a.stage != b.stage) return b.stage.compareTo(a.stage);
     if (a.cleared != b.cleared) return a.cleared ? -1 : 1;
-    return b.score.compareTo(a.score);
+    return 0;
   }
 
-  /// 내 기록 화면 정렬: 도달 Stage가 높은 순, 같으면 최신순.
-  static int compareByStageThenRecent(GameRecord a, GameRecord b) {
-    if (a.stage != b.stage) return b.stage.compareTo(a.stage);
+  /// 내 기록 화면 정렬(랭킹): [compareByRank] 순서, 그것까지 같으면 최신순.
+  /// 그래서 1위가 항상 최고 기록이다.
+  static int compareForRanking(GameRecord a, GameRecord b) {
+    final byRank = compareByRank(a, b);
+    if (byRank != 0) return byRank;
     return b.playedAt.compareTo(a.playedAt);
   }
 
