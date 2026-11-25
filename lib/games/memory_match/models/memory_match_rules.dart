@@ -33,7 +33,7 @@ enum ExchangeOption {
   time,
 }
 
-/// 기억력 짝 맞추기 규칙에 쓰는 숫자 모음. (SPEC.md Phase 2)
+/// 기억력 짝 맞추기 규칙에 쓰는 숫자 모음. (docs/specs/memory_match.md)
 abstract final class MemoryMatchRules {
   static const firstStage = 1;
 
